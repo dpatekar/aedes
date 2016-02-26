@@ -11,8 +11,19 @@ var Packet = require('aedes-packet')
 var bulk = require('bulk-write-stream')
 var reusify = require('reusify')
 var Client = require('./lib/client')
+var xtend = require('xtend')
 
 module.exports = Aedes
+
+var defaultOptions = {
+  concurrency: 100,
+  heartbeatInterval: 60000, // 1 minute
+  connectTimeout: 30000, // 30 secs
+  authenticate: defaultAuthenticate,
+  authorizePublish: defaultAuthorizePublish,
+  authorizeSubscribe: defaultAuthorizeSubscribe,
+  published: defaultPublished
+}
 
 function Aedes (opts) {
   var that = this
@@ -21,11 +32,7 @@ function Aedes (opts) {
     return new Aedes(opts)
   }
 
-  // TODO replace with extend
-  opts = opts || {}
-  opts.concurrency = opts.concurrency || 100
-  opts.heartbeatInterval = opts.heartbeatInterval || 60000 // 1 minute
-  opts.connectTimeout = opts.connectTimeout || 30000 // 30 secs
+  opts = xtend(defaultOptions, opts)
 
   this.id = shortid()
   this.counter = 0
@@ -41,6 +48,11 @@ function Aedes (opts) {
   this._parallel = parallel()
   this._series = series()
   this._enqueuers = reusify(DoEnqueues)
+
+  this.authenticate = opts.authenticate
+  this.authorizePublish = opts.authorizePublish
+  this.authorizeSubscribe = opts.authorizeSubscribe
+  this.published = opts.published
 
   this.clients = {}
   this.brokers = {}
@@ -268,20 +280,20 @@ Aedes.prototype.close = function (cb) {
   this._parallel(this, closeClient, Object.keys(this.clients), cb || noop)
 }
 
-Aedes.prototype.authenticate = function (client, username, password, callback) {
+function defaultAuthenticate (client, username, password, callback) {
   callback(null, true)
 }
 
-Aedes.prototype.authorizePublish = function (client, packet, callback) {
+function defaultAuthorizePublish (client, packet, callback) {
   callback(null)
 }
 
-Aedes.prototype.authorizeSubscribe = function (client, sub, cb) {
-  cb(null, sub)
+function defaultAuthorizeSubscribe (client, sub, callback) {
+  callback(null, sub)
 }
 
-Aedes.prototype.published = function (packet, client, done) {
-  done(null)
+function defaultPublished (packet, client, callback) {
+  callback(null)
 }
 
 function PublishState (broker, client, packet) {
